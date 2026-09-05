@@ -15,6 +15,7 @@ class FinanceController extends ChangeNotifier {
   List<Budget> budgets = [];
   List<Goal> goals = [];
   bool isLoading = true;
+  int? memberFilterId;
 
   Future<void> load() async {
     isLoading = true;
@@ -35,6 +36,8 @@ class FinanceController extends ChangeNotifier {
   int get expenses => transactions.where((x) => x.type == EntryType.expense).fold(0, (sum, x) => sum + x.amountCents);
   int get assets => patrimony.where((x) => !x.isDebt).fold(0, (sum, x) => sum + x.amountCents);
   int get debts => patrimony.where((x) => x.isDebt).fold(0, (sum, x) => sum + x.amountCents);
+  List<TransactionEntry> get visibleTransactions => memberFilterId == null ? transactions : transactions.where((x) => x.memberId == memberFilterId).toList();
+  void filterByMember(int? id) { memberFilterId = id; notifyListeners(); }
 
   Future<void> addTransaction({required EntryType type, required String description, required int amountCents}) async {
     await repository.addTransaction(TransactionEntry(id: 0, type: type, description: description, amountCents: amountCents, date: DateTime.now()));
