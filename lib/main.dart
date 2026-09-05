@@ -9,5 +9,6 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final controller = FinanceController(FinanceRepository());
   await controller.load();
-  runApp(ChangeNotifierProvider.value(value: controller, child: const MeuDinheiroApp()));
+  runApp(ChangeNotifierProvider.value(
+      value: controller, child: const MeuDinheiroApp()));
 }
