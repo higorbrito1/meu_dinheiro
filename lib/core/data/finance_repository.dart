@@ -40,6 +40,11 @@ class FinanceRepository {
       await db.insert('members', {'household_id': 1, 'name': 'Esposa', 'role': 'member'});
       await db.insert('accounts', {'household_id': 1, 'name': 'Conta principal', 'kind': 'bank', 'limit_cents': 0});
       for (final item in [['Moradia', 'expense'], ['Alimentação', 'expense'], ['Transporte', 'expense'], ['Salário', 'income'], ['Outros', 'expense']]) { await db.insert('categories', {'household_id': 1, 'name': item[0], 'type': item[1]}); }
+      await db.insert('transactions', {'household_id': 1, 'type': 'income', 'description': 'Salário PMPR', 'amount_cents': 274288, 'date': '2026-09-01T00:00:00.000', 'member_id': 1, 'account_id': 1, 'category_id': 4, 'status': 'paid'});
+      for (final item in [['Cartão MP', 14094], ['Cartão Itaú', 22757], ['Formatura PMPR', 25000], ['Plano Celular', 4500], ['Licenciamento Carro', 25127], ['Aluguel', 140000], ['Água', 20000], ['Luz', 15000], ['Internet (10)', 2668]]) { await db.insert('transactions', {'household_id': 1, 'type': 'expense', 'description': item[0], 'amount_cents': item[1], 'date': '2026-09-01T00:00:00.000', 'member_id': 1, 'account_id': 1, 'category_id': 5, 'status': 'paid'}); }
+      await db.insert('patrimony', {'household_id': 1, 'name': 'Palio', 'amount_cents': 2732200, 'is_debt': 0});
+      await db.insert('patrimony', {'household_id': 1, 'name': 'Biz', 'amount_cents': 990400, 'is_debt': 0});
+      await db.insert('patrimony', {'household_id': 1, 'name': 'Consignado BB', 'amount_cents': 2149400, 'is_debt': 1});
     }
   }
 
@@ -73,8 +78,8 @@ class FinanceRepository {
     if (payload['schema_version'] is! int || payload['schema_version'] < 1) throw const FormatException('Backup inválido');
     final db = await database;
     await db.transaction((tx) async {
-      for (final table in ['transactions', 'patrimony', 'recurring_transactions', 'budgets', 'goals']) { await tx.delete(table); }
-      for (final table in ['transactions', 'patrimony', 'recurring_transactions', 'budgets', 'goals']) {
+      for (final table in ['transactions', 'patrimony', 'recurring_transactions', 'budgets', 'goals', 'categories', 'accounts', 'members', 'households']) { await tx.delete(table); }
+      for (final table in ['households', 'members', 'accounts', 'categories', 'transactions', 'patrimony', 'recurring_transactions', 'budgets', 'goals']) {
         final rows = payload[table];
         if (rows is List) { for (final row in rows) { await tx.insert(table, Map<String, Object?>.from(row as Map)); } }
       }
