@@ -56,11 +56,11 @@ class FinanceRepository {
   Future<void> addAccount(Account x) async => (await database).insert('accounts', {'household_id': 1, 'name': x.name, 'kind': x.kind, 'limit_cents': x.limitCents});
   Future<void> addCategory(Category x) async => (await database).insert('categories', {'household_id': 1, 'name': x.name, 'type': x.type.name});
   Future<void> deleteTransaction(int id) async => (await database).delete('transactions', where: 'id = ?', whereArgs: [id]);
-  Future<void> addPatrimony(PatrimonyItem x) async => (await database).insert('patrimony', {'household_id': 1, ...x.toMap()..remove('id')});
+  Future<void> addPatrimony(PatrimonyItem x) async { final values = x.toMap()..remove('id'); await (await database).insert('patrimony', {'household_id': 1, ...values}); }
   Future<void> deletePatrimony(int id) async => (await database).delete('patrimony', where: 'id = ?', whereArgs: [id]);
-  Future<void> addRecurring(RecurringTransaction x) async => (await database).insert('recurring_transactions', {'household_id': 1, ...x.toMap()..remove('id')});
-  Future<void> addBudget(Budget x) async => (await database).insert('budgets', {'household_id': 1, ...x.toMap()..remove('id')});
-  Future<void> addGoal(Goal x) async => (await database).insert('goals', {'household_id': 1, ...x.toMap()..remove('id')});
+  Future<void> addRecurring(RecurringTransaction x) async { final values = x.toMap()..remove('id'); await (await database).insert('recurring_transactions', {'household_id': 1, ...values}); }
+  Future<void> addBudget(Budget x) async { final values = x.toMap()..remove('id'); await (await database).insert('budgets', {'household_id': 1, ...values}); }
+  Future<void> addGoal(Goal x) async { final values = x.toMap()..remove('id'); await (await database).insert('goals', {'household_id': 1, ...values}); }
   Future<String> exportJson() async {
     final db = await database;
     final tables = ['households', 'members', 'accounts', 'categories', 'transactions', 'patrimony', 'recurring_transactions', 'budgets', 'goals'];
