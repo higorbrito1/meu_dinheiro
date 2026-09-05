@@ -11,4 +11,3 @@ android/local.properties
 *.iml
 .idea/
 .vscode/
-pubspec.lock
