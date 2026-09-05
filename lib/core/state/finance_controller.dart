@@ -46,6 +46,10 @@ class FinanceController extends ChangeNotifier {
     await load();
   }
 
+  Future<void> addMember(String name) async { await repository.addMember(HouseholdMember(id: 0, name: name)); await load(); }
+  Future<void> addAccount({required String name, required String kind, int limitCents = 0}) async { await repository.addAccount(Account(id: 0, name: name, kind: kind, limitCents: limitCents)); await load(); }
+  Future<void> addCategory({required String name, required EntryType type}) async { await repository.addCategory(Category(id: 0, name: name, type: type)); await load(); }
+
   Future<String> exportJson() => repository.exportJson();
   Future<void> importJson(String json) async { await repository.importJson(json); await load(); }
 

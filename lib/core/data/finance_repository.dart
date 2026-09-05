@@ -52,6 +52,9 @@ class FinanceRepository {
   Future<List<Budget>> budgets() async => (await (await database).query('budgets', orderBy: 'month')).map(Budget.fromMap).toList();
   Future<List<Goal>> goals() async => (await (await database).query('goals', orderBy: 'id')).map(Goal.fromMap).toList();
   Future<void> addTransaction(TransactionEntry x) async => (await database).insert('transactions', {'type': x.type.name, 'description': x.description, 'amount_cents': x.amountCents, 'date': x.date.toIso8601String(), 'member_id': x.memberId, 'account_id': x.accountId, 'category_id': x.categoryId, 'status': x.status, 'notes': x.notes});
+  Future<void> addMember(HouseholdMember x) async => (await database).insert('members', {'household_id': 1, 'name': x.name, 'role': x.role.name});
+  Future<void> addAccount(Account x) async => (await database).insert('accounts', {'household_id': 1, 'name': x.name, 'kind': x.kind, 'limit_cents': x.limitCents});
+  Future<void> addCategory(Category x) async => (await database).insert('categories', {'household_id': 1, 'name': x.name, 'type': x.type.name});
   Future<void> deleteTransaction(int id) async => (await database).delete('transactions', where: 'id = ?', whereArgs: [id]);
   Future<void> addPatrimony(PatrimonyItem x) async => (await database).insert('patrimony', {'household_id': 1, ...x.toMap()..remove('id')});
   Future<void> deletePatrimony(int id) async => (await database).delete('patrimony', where: 'id = ?', whereArgs: [id]);
