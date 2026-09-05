@@ -11,6 +11,9 @@ class FinanceController extends ChangeNotifier {
   List<HouseholdMember> members = [];
   List<Account> accounts = [];
   List<Category> categories = [];
+  List<RecurringTransaction> recurring = [];
+  List<Budget> budgets = [];
+  List<Goal> goals = [];
   bool isLoading = true;
 
   Future<void> load() async {
@@ -21,6 +24,9 @@ class FinanceController extends ChangeNotifier {
     members = await repository.members();
     accounts = await repository.accounts();
     categories = await repository.categories();
+    recurring = await repository.recurring();
+    budgets = await repository.budgets();
+    goals = await repository.goals();
     isLoading = false;
     notifyListeners();
   }
@@ -35,10 +41,22 @@ class FinanceController extends ChangeNotifier {
     await load();
   }
 
+  Future<void> addDetailedTransaction({required EntryType type, required String description, required int amountCents, required int memberId, required int accountId, int? categoryId, required String status, String? notes}) async {
+    await repository.addTransaction(TransactionEntry(id: 0, type: type, description: description, amountCents: amountCents, date: DateTime.now(), memberId: memberId, accountId: accountId, categoryId: categoryId, status: status, notes: notes));
+    await load();
+  }
+
+  Future<String> exportJson() => repository.exportJson();
+  Future<void> importJson(String json) async { await repository.importJson(json); await load(); }
+
   Future<void> addPatrimony({required String name, required int amountCents, required bool isDebt}) async {
     await repository.addPatrimony(PatrimonyItem(id: 0, name: name, amountCents: amountCents, isDebt: isDebt));
     await load();
   }
+
+  Future<void> addRecurring({required EntryType type, required String description, required int amountCents, required int dayOfMonth}) async { await repository.addRecurring(RecurringTransaction(id: 0, description: description, type: type, amountCents: amountCents, dayOfMonth: dayOfMonth)); await load(); }
+  Future<void> addGoal({required String name, required int targetCents}) async { await repository.addGoal(Goal(id: 0, name: name, targetCents: targetCents)); await load(); }
+  Future<void> addBudget({required int categoryId, required String month, required int amountCents}) async { await repository.addBudget(Budget(id: 0, categoryId: categoryId, month: month, amountCents: amountCents)); await load(); }
 
   Future<void> deleteTransaction(int id) async { await repository.deleteTransaction(id); await load(); }
   Future<void> deletePatrimony(int id) async { await repository.deletePatrimony(id); await load(); }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -47,8 +48,33 @@ class FinanceRepository {
   Future<List<HouseholdMember>> members() async => (await (await database).query('members', orderBy: 'id')).map(HouseholdMember.fromMap).toList();
   Future<List<Account>> accounts() async => (await (await database).query('accounts', orderBy: 'name')).map(Account.fromMap).toList();
   Future<List<Category>> categories() async => (await (await database).query('categories', orderBy: 'name')).map(Category.fromMap).toList();
+  Future<List<RecurringTransaction>> recurring() async => (await (await database).query('recurring_transactions', orderBy: 'day_of_month')).map(RecurringTransaction.fromMap).toList();
+  Future<List<Budget>> budgets() async => (await (await database).query('budgets', orderBy: 'month')).map(Budget.fromMap).toList();
+  Future<List<Goal>> goals() async => (await (await database).query('goals', orderBy: 'id')).map(Goal.fromMap).toList();
   Future<void> addTransaction(TransactionEntry x) async => (await database).insert('transactions', {'type': x.type.name, 'description': x.description, 'amount_cents': x.amountCents, 'date': x.date.toIso8601String(), 'member_id': x.memberId, 'account_id': x.accountId, 'category_id': x.categoryId, 'status': x.status, 'notes': x.notes});
   Future<void> deleteTransaction(int id) async => (await database).delete('transactions', where: 'id = ?', whereArgs: [id]);
   Future<void> addPatrimony(PatrimonyItem x) async => (await database).insert('patrimony', {'household_id': 1, ...x.toMap()..remove('id')});
   Future<void> deletePatrimony(int id) async => (await database).delete('patrimony', where: 'id = ?', whereArgs: [id]);
+  Future<void> addRecurring(RecurringTransaction x) async => (await database).insert('recurring_transactions', {'household_id': 1, ...x.toMap()..remove('id')});
+  Future<void> addBudget(Budget x) async => (await database).insert('budgets', {'household_id': 1, ...x.toMap()..remove('id')});
+  Future<void> addGoal(Goal x) async => (await database).insert('goals', {'household_id': 1, ...x.toMap()..remove('id')});
+  Future<String> exportJson() async {
+    final db = await database;
+    final tables = ['households', 'members', 'accounts', 'categories', 'transactions', 'patrimony', 'recurring_transactions', 'budgets', 'goals'];
+    final payload = <String, Object?>{'schema_version': 2, 'exported_at': DateTime.now().toIso8601String()};
+    for (final table in tables) { payload[table] = await db.query(table); }
+    return const JsonEncoder.withIndent('  ').convert(payload);
+  }
+  Future<void> importJson(String json) async {
+    final payload = jsonDecode(json) as Map<String, dynamic>;
+    if (payload['schema_version'] is! int || payload['schema_version'] < 1) throw const FormatException('Backup inválido');
+    final db = await database;
+    await db.transaction((tx) async {
+      for (final table in ['transactions', 'patrimony', 'recurring_transactions', 'budgets', 'goals']) { await tx.delete(table); }
+      for (final table in ['transactions', 'patrimony', 'recurring_transactions', 'budgets', 'goals']) {
+        final rows = payload[table];
+        if (rows is List) { for (final row in rows) { await tx.insert(table, Map<String, Object?>.from(row as Map)); } }
+      }
+    });
+  }
 }
