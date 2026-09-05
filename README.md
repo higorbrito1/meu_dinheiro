@@ -10,6 +10,7 @@ Reescrita do aplicativo financeiro em Flutter, com arquitetura local-first.
 - Estrutura de casa compartilhada com membros, contas e categorias.
 - Lançamentos preparados para responsável, conta, status e observações.
 - Tabelas preparadas para recorrências, orçamentos e metas.
+- Contrato `FinanceSyncGateway` para conectar um backend posteriormente.
 - Navegação declarativa com `go_router`.
 - Estado da aplicação isolado em `FinanceController`.
 - Testes automatizados em `test/`.
