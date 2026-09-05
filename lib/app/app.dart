@@ -1,45 +1,44 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
-
 import '../core/models/finance_models.dart';
 import '../core/state/finance_controller.dart';
 
 final _money = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
-String money(int cents) => _money.format(cents / 100);
+String money(int c) => _money.format(c / 100);
+String monthLabel(DateTime d) =>
+    DateFormat('MMM/yy', 'pt_BR').format(d).replaceAll('.', '');
 
 class MeuDinheiroApp extends StatelessWidget {
   const MeuDinheiroApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp.router(
-        title: 'Meu dinheiro',
-        theme: ThemeData(
-            colorScheme:
-                ColorScheme.fromSeed(seedColor: const Color(0xff176b4b)),
-            useMaterial3: true,
-            scaffoldBackgroundColor: const Color(0xfff5f7f6)),
-        routerConfig: GoRouter(routes: [
-          GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
-          GoRoute(
-              path: '/transactions',
-              builder: (_, __) => const TransactionsScreen()),
-          GoRoute(
-              path: '/patrimony', builder: (_, __) => const PatrimonyScreen()),
-          GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
-          GoRoute(path: '/backup', builder: (_, __) => const BackupScreen()),
-          GoRoute(
-              path: '/planning', builder: (_, __) => const PlanningScreen()),
-          GoRoute(
-              path: '/household', builder: (_, __) => const HouseholdScreen())
-        ]),
-      );
+      title: 'Meu dinheiro',
+      theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff176b4b)),
+          useMaterial3: true,
+          scaffoldBackgroundColor: const Color(0xfff5f7f6)),
+      routerConfig: GoRouter(routes: [
+        GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
+        GoRoute(
+            path: '/transactions',
+            builder: (_, __) => const TransactionsScreen()),
+        GoRoute(
+            path: '/patrimony', builder: (_, __) => const PatrimonyScreen()),
+        GoRoute(path: '/goals', builder: (_, __) => const GoalsScreen()),
+        GoRoute(path: '/more', builder: (_, __) => const MoreScreen()),
+        GoRoute(
+            path: '/household', builder: (_, __) => const HouseholdScreen()),
+        GoRoute(path: '/backup', builder: (_, __) => const BackupScreen()),
+        GoRoute(path: '/controls', builder: (_, __) => const ControlsScreen())
+      ]));
 }
 
 class HomeScreen extends StatelessWidget {
@@ -57,47 +56,26 @@ class HomeScreen extends StatelessWidget {
                   .textTheme
                   .headlineSmall
                   ?.copyWith(fontWeight: FontWeight.bold)),
-          MonthSelector(),
-          const SizedBox(height: 18),
-          Wrap(spacing: 10, runSpacing: 10, children: [
-            SummaryCard('Receitas', c.income, Colors.green),
-            SummaryCard('Despesas', c.expenses, Colors.orange),
-            SummaryCard('Saldo', c.income - c.expenses, Colors.teal)
+          const MonthSelector(),
+          Row(children: [
+            Expanded(child: SummaryCard('Receitas', c.income, Colors.green)),
+            Expanded(child: SummaryCard('Despesas', c.expenses, Colors.orange)),
+            Expanded(
+                child: SummaryCard('Saldo', c.income - c.expenses, Colors.teal))
           ]),
-          const SizedBox(height: 24),
-          const Eyebrow('LANÇAMENTOS RECENTES'),
-          if (c.monthTransactions.isEmpty)
-            const EmptyState('Nenhum lançamento neste mês.')
-          else
-            ...c.monthTransactions.take(5).map((x) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                    child: Icon(x.type == EntryType.income
-                        ? Icons.arrow_downward
-                        : Icons.arrow_upward)),
-                title: Text(x.description),
-                subtitle: Text(DateFormat('dd/MM/yyyy').format(x.date)),
-                trailing: Text(money(x.amountCents),
-                    style: TextStyle(
-                        color: x.type == EntryType.income
-                            ? Colors.green
-                            : Colors.red,
-                        fontWeight: FontWeight.bold)))),
           const SizedBox(height: 18),
-          OutlinedButton.icon(
-              onPressed: () => context.go('/planning'),
-              icon: const Icon(Icons.flag_outlined),
-              label: const Text('Planejamento da casa')),
-          const SizedBox(height: 16),
-          Text('Casa: ${c.members.map((m) => m.name).join(' e ')}',
-              style: Theme.of(context).textTheme.bodySmall),
-          Text(
-              'Conta principal: ${c.accounts.isEmpty ? 'não cadastrada' : c.accounts.first.name}',
-              style: Theme.of(context).textTheme.bodySmall),
-          OutlinedButton.icon(
-              onPressed: () => context.go('/household'),
-              icon: const Icon(Icons.group_outlined),
-              label: const Text('Configurar casa, contas e categorias')),
+          const Eyebrow('ANÁLISE DO MÊS'),
+          Text('Despesas por categoria',
+              style: Theme.of(context).textTheme.titleLarge),
+          Card(
+              child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                      height: 200,
+                      child: Row(children: [
+                        Expanded(child: PieChart(c)),
+                        Expanded(child: CategoryBars(c))
+                      ]))))
         ]));
   }
 }
@@ -116,7 +94,7 @@ class TransactionsScreen extends StatelessWidget {
             icon: const Icon(Icons.add),
             label: const Text('Lançamento')),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          MonthSelector(),
+          const MonthSelector(),
           const Eyebrow('FILTRAR POR RESPONSÁVEL'),
           Wrap(spacing: 8, children: [
             ChoiceChip(
@@ -128,35 +106,35 @@ class TransactionsScreen extends StatelessWidget {
                 selected: c.memberFilterId == m.id,
                 onSelected: (_) => c.filterByMember(m.id)))
           ]),
-          const SizedBox(height: 14),
           if (items.isEmpty)
             const EmptyState('Nenhum lançamento neste mês.')
           else
-            ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: items.length,
-                separatorBuilder: (_, __) => const Divider(),
-                itemBuilder: (_, i) {
-                  final x = items[i];
-                  final member = c.members.where((m) => m.id == x.memberId);
-                  return ListTile(
-                      title: Text(x.description),
-                      subtitle: Text(
-                          '${DateFormat('dd/MM/yyyy').format(x.date)} • ${member.isEmpty ? 'Casa' : member.first.name} • ${x.status == 'paid' ? 'Pago' : 'Previsto'}'),
-                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Text(money(x.amountCents),
-                            style: TextStyle(
-                                color: x.type == EntryType.income
-                                    ? Colors.green
-                                    : Colors.red,
-                                fontWeight: FontWeight.bold)),
-                        IconButton(
-                            onPressed: () => confirmDelete(
-                                context, () => c.deleteTransaction(x.id)),
-                            icon: const Icon(Icons.delete_outline))
-                      ]));
-                })
+            ...items.map((x) {
+              final m = c.members.where((a) => a.id == x.memberId);
+              return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                      x.type == EntryType.income
+                          ? Icons.arrow_downward
+                          : Icons.arrow_upward,
+                      color: x.type == EntryType.income
+                          ? Colors.green
+                          : Colors.red),
+                  title: Row(children: [
+                    Expanded(child: Text(x.description)),
+                    Chip(
+                        label: Text(m.isEmpty ? 'Casa' : m.first.name),
+                        visualDensity: VisualDensity.compact)
+                  ]),
+                  subtitle: Text(monthLabel(x.date)),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(money(x.amountCents)),
+                    IconButton(
+                        onPressed: () => confirmDelete(
+                            context, () => c.deleteTransaction(x.id)),
+                        icon: const Icon(Icons.delete_outline))
+                  ]));
+            })
         ]));
   }
 }
@@ -181,11 +159,17 @@ class PatrimonyScreen extends StatelessWidget {
                   .textTheme
                   .displaySmall
                   ?.copyWith(fontWeight: FontWeight.bold, color: Colors.teal)),
-          const SizedBox(height: 20),
+          Text('Evolução mês a mês',
+              style: Theme.of(context).textTheme.titleLarge),
+          Card(
+              child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                      height: 180,
+                      child: SnapshotChart(c.patrimonySnapshots)))),
           Text('Ativos — ${money(c.assets)}',
               style: Theme.of(context).textTheme.titleLarge),
           ...c.patrimony.where((x) => !x.isDebt).map((x) => PatrimonyTile(x)),
-          const SizedBox(height: 20),
           Text('Dívidas — ${money(c.debts)}',
               style: Theme.of(context).textTheme.titleLarge),
           ...c.patrimony.where((x) => x.isDebt).map((x) => PatrimonyTile(x))
@@ -193,104 +177,30 @@ class PatrimonyScreen extends StatelessWidget {
   }
 }
 
-class ReportsScreen extends StatelessWidget {
-  const ReportsScreen({super.key});
+class GoalsScreen extends StatelessWidget {
+  const GoalsScreen({super.key});
   @override
   Widget build(BuildContext context) {
     final c = context.watch<FinanceController>();
     return AppScaffold(
-        title: 'Análises',
-        index: 3,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Eyebrow('RESUMO'),
-          Text('Distribuição atual',
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 18),
-          LinearProgressIndicator(
-              value: c.income == 0
-                  ? 0
-                  : (c.expenses / c.income).clamp(0, 1).toDouble(),
-              minHeight: 14),
-          const SizedBox(height: 8),
-          Text('${money(c.expenses)} gastos de ${money(c.income)} recebidos'),
-          const SizedBox(height: 28),
-          const Text(
-              'Este relatório será expandido com categorias e comparativo mensal.')
-        ]));
-  }
-}
-
-class BackupScreen extends StatelessWidget {
-  const BackupScreen({super.key});
-  @override
-  Widget build(BuildContext context) => AppScaffold(
-      title: 'Backup',
-      index: 4,
-      child: Card(
-          child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Eyebrow('SEGURANÇA DOS DADOS'),
-                    Text('Backup financeiro',
-                        style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: 8),
-                    const Text(
-                        'Exporte uma cópia JSON para guardar ou importar em outro aparelho.'),
-                    const SizedBox(height: 18),
-                    FilledButton.icon(
-                        onPressed: () => exportBackup(context),
-                        icon: const Icon(Icons.upload_file),
-                        label: const Text('Exportar dados')),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                        onPressed: () => importBackup(context),
-                        icon: const Icon(Icons.file_open),
-                        label: const Text('Importar dados'))
-                  ]))));
-}
-
-class PlanningScreen extends StatelessWidget {
-  const PlanningScreen({super.key});
-  @override
-  Widget build(BuildContext context) {
-    final c = context.watch<FinanceController>();
-    return AppScaffold(
-        title: 'Planejamento',
-        index: 0,
-        floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => showGoalDialog(context),
-            icon: const Icon(Icons.add),
-            label: const Text('Meta')),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Eyebrow('CASA'),
-          Text('Metas e compromissos',
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 18),
-          Text('Recorrências cadastradas: ${c.recurring.length}'),
-          OutlinedButton.icon(
-              onPressed: () => showRecurringDialog(context),
-              icon: const Icon(Icons.repeat),
-              label: const Text('Adicionar recorrência')),
-          Text('Orçamentos cadastrados: ${c.budgets.length}'),
-          OutlinedButton.icon(
-              onPressed: () => showBudgetDialog(context),
-              icon: const Icon(Icons.pie_chart_outline),
-              label: const Text('Adicionar orçamento')),
-          const SizedBox(height: 24),
-          const Eyebrow('METAS'),
-          if (c.goals.isEmpty)
-            const EmptyState('Nenhuma meta cadastrada.')
-          else
-            ...c.goals.map((g) => ListTile(
-                contentPadding: EdgeInsets.zero,
+      title: 'Objetivos',
+      index: 3,
+      floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => showGoalDialog(context),
+          icon: const Icon(Icons.add),
+          label: const Text('Objetivo')),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Eyebrow('CONTA DE OBJETIVOS'),
+        Text('Metas da casa',
+            style: Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(fontWeight: FontWeight.bold)),
+        if (c.goals.isEmpty)
+          const EmptyState('Nenhum objetivo cadastrado.')
+        else
+          ...c.goals.map((g) => Card(
+                  child: ListTile(
                 title: Text(g.name),
                 subtitle: LinearProgressIndicator(
                     value: g.targetCents == 0
@@ -298,59 +208,46 @@ class PlanningScreen extends StatelessWidget {
                         : (g.savedCents / g.targetCents)
                             .clamp(0, 1)
                             .toDouble()),
-                trailing:
-                    Text('${money(g.savedCents)} / ${money(g.targetCents)}')))
-        ]));
+                trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('${money(g.savedCents)} / ${money(g.targetCents)}'),
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(
+                            onPressed: () => showContributionDialog(context, g),
+                            icon: const Icon(Icons.add_circle_outline)),
+                        IconButton(
+                            onPressed: () => confirmDelete(
+                                context, () => c.deleteGoal(g.id)),
+                            icon: const Icon(Icons.delete_outline)),
+                      ]),
+                    ]),
+              )))
+      ]),
+    );
   }
 }
 
-class HouseholdScreen extends StatelessWidget {
-  const HouseholdScreen({super.key});
+class MoreScreen extends StatelessWidget {
+  const MoreScreen({super.key});
   @override
-  Widget build(BuildContext context) {
-    final c = context.watch<FinanceController>();
-    return AppScaffold(
-        title: 'Nossa casa',
-        index: 0,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Eyebrow('PESSOAS'),
-          ...c.members.map((m) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.person_outline),
-              title: Text(m.name),
-              subtitle: Text(
-                  m.role == MemberRole.owner ? 'Administrador' : 'Membro'))),
-          OutlinedButton.icon(
-              onPressed: () => showMemberDialog(context),
-              icon: const Icon(Icons.person_add_outlined),
-              label: const Text('Adicionar pessoa')),
-          const SizedBox(height: 20),
-          const Eyebrow('CONTAS E CARTÕES'),
-          ...c.accounts.map((a) => ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.account_balance_outlined),
-              title: Text(a.name),
-              subtitle: Text(a.kind),
-              trailing: a.limitCents > 0
-                  ? Text('Limite ${money(a.limitCents)}')
-                  : null)),
-          OutlinedButton.icon(
-              onPressed: () => showAccountDialog(context),
-              icon: const Icon(Icons.add_card),
-              label: const Text('Adicionar conta ou cartão')),
-          const SizedBox(height: 20),
-          const Eyebrow('CATEGORIAS'),
-          Wrap(
-              spacing: 8,
-              children:
-                  c.categories.map((x) => Chip(label: Text(x.name))).toList()),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-              onPressed: () => showCategoryDialog(context),
-              icon: const Icon(Icons.category_outlined),
-              label: const Text('Adicionar categoria'))
-        ]));
-  }
+  Widget build(BuildContext context) => AppScaffold(
+      title: 'Mais',
+      index: 4,
+      child: Column(children: [
+        ListTile(
+            leading: const Icon(Icons.group_outlined),
+            title: const Text('Casa, membros, contas e categorias'),
+            onTap: () => context.go('/household')),
+        ListTile(
+            leading: const Icon(Icons.tune),
+            title: const Text('Controles do app'),
+            onTap: () => context.go('/controls')),
+        ListTile(
+            leading: const Icon(Icons.backup_outlined),
+            title: const Text('Backup e restauração'),
+            onTap: () => context.go('/backup'))
+      ]));
 }
 
 class AppScaffold extends StatelessWidget {
@@ -379,8 +276,8 @@ class AppScaffold extends StatelessWidget {
       floatingActionButton: floatingActionButton,
       bottomNavigationBar: NavigationBar(
           selectedIndex: index,
-          onDestinationSelected: (i) => context.go(
-              ['/', '/transactions', '/patrimony', '/reports', '/backup'][i]),
+          onDestinationSelected: (i) => context
+              .go(['/', '/transactions', '/patrimony', '/goals', '/more'][i]),
           destinations: const [
             NavigationDestination(
                 icon: Icon(Icons.home_outlined), label: 'Resumo'),
@@ -390,9 +287,8 @@ class AppScaffold extends StatelessWidget {
                 icon: Icon(Icons.account_balance_wallet_outlined),
                 label: 'Patrimônio'),
             NavigationDestination(
-                icon: Icon(Icons.insights_outlined), label: 'Análises'),
-            NavigationDestination(
-                icon: Icon(Icons.backup_outlined), label: 'Backup')
+                icon: Icon(Icons.flag_outlined), label: 'Objetivos'),
+            NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Mais')
           ]));
 }
 
@@ -420,7 +316,7 @@ class MonthSelector extends StatelessWidget {
           onPressed: () => c.selectMonth(
               DateTime(c.selectedMonth.year, c.selectedMonth.month - 1)),
           icon: const Icon(Icons.chevron_left)),
-      Text(DateFormat('MM/yyyy').format(c.selectedMonth),
+      Text(monthLabel(c.selectedMonth),
           style: const TextStyle(fontWeight: FontWeight.bold)),
       IconButton(
           onPressed: () => c.selectMonth(
@@ -436,22 +332,19 @@ class SummaryCard extends StatelessWidget {
   final int value;
   final Color color;
   @override
-  Widget build(BuildContext context) => SizedBox(
-      width: 150,
-      child: Card(
-          child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label),
-                    const SizedBox(height: 8),
-                    Text(money(value),
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: color,
-                            fontSize: 18))
-                  ]))));
+  Widget build(BuildContext context) => Card(
+      child: Padding(
+          padding: const EdgeInsets.all(9),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: const TextStyle(fontSize: 12)),
+            FittedBox(
+                child: Text(money(value),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                        fontSize: 15)))
+          ])));
 }
 
 class EmptyState extends StatelessWidget {
@@ -482,37 +375,139 @@ class PatrimonyTile extends StatelessWidget {
   }
 }
 
+class PieChart extends StatelessWidget {
+  const PieChart(this.c, {super.key});
+  final FinanceController c;
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+      painter: PiePainter(c.categoryTotals.values.toList()),
+      child:
+          Center(child: Text(money(c.expenses), textAlign: TextAlign.center)));
+}
+
+class CategoryBars extends StatelessWidget {
+  const CategoryBars(this.c, {super.key});
+  final FinanceController c;
+  @override
+  Widget build(BuildContext context) {
+    final v = c.categoryTotals;
+    final max = v.values.fold<int>(0, (a, b) => a > b ? a : b);
+    return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: v.entries
+            .take(5)
+            .map((e) => Row(children: [
+                  SizedBox(
+                      width: 60,
+                      child: Text(e.key,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 9))),
+                  Expanded(
+                      child: LinearProgressIndicator(
+                          value: max == 0 ? 0 : e.value / max)),
+                  Text(money(e.value), style: const TextStyle(fontSize: 8))
+                ]))
+            .toList());
+  }
+}
+
+class PiePainter extends CustomPainter {
+  PiePainter(this.v);
+  final List<int> v;
+  @override
+  void paint(Canvas c, Size s) {
+    final t = v.fold<int>(0, (a, b) => a + b);
+    if (t == 0) return;
+    var start = -1.57;
+    final colors = [
+      Colors.teal,
+      Colors.orange,
+      Colors.blue,
+      Colors.purple,
+      Colors.red
+    ];
+    for (var i = 0; i < v.length; i++) {
+      final sweep = v[i] / t * 6.283;
+      c.drawArc(Offset.zero & s, start, sweep, true,
+          Paint()..color = colors[i % colors.length]);
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant PiePainter old) => old.v != v;
+}
+
+class SnapshotChart extends StatelessWidget {
+  const SnapshotChart(this.items, {super.key});
+  final List<PatrimonySnapshot> items;
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+      painter: SnapshotPainter(items), child: const SizedBox.expand());
+}
+
+class SnapshotPainter extends CustomPainter {
+  SnapshotPainter(this.items);
+  final List<PatrimonySnapshot> items;
+  @override
+  void paint(Canvas c, Size s) {
+    if (items.isEmpty) return;
+    final max = items
+        .map((x) => x.amountCents)
+        .reduce((a, b) => a > b ? a : b)
+        .toDouble();
+    final min = items
+        .map((x) => x.amountCents)
+        .reduce((a, b) => a < b ? a : b)
+        .toDouble();
+    final p = Path();
+    for (var i = 0; i < items.length; i++) {
+      final x =
+          items.length == 1 ? s.width / 2 : i * s.width / (items.length - 1);
+      final y = s.height -
+          ((items[i].amountCents - min) /
+              (max - min == 0 ? 1 : max - min) *
+              (s.height - 20)) -
+          10;
+      i == 0 ? p.moveTo(x, y) : p.lineTo(x, y);
+    }
+    c.drawPath(
+        p,
+        Paint()
+          ..color = Colors.teal
+          ..strokeWidth = 3
+          ..style = PaintingStyle.stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant SnapshotPainter old) => old.items != items;
+}
+
 Future<void> confirmDelete(BuildContext context, VoidCallback action) async {
   final ok = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-              title: const Text('Excluir registro?'),
-              content: const Text('Esta ação não pode ser desfeita.'),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancelar')),
-                FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Excluir'))
-              ]));
+      builder: (_) =>
+          AlertDialog(title: const Text('Excluir registro?'), actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Excluir'))
+          ]));
   if (ok == true) action();
 }
 
 Future<void> showEntryDialog(BuildContext context) async {
   final c = context.read<FinanceController>();
-  final name = TextEditingController();
-  final value = TextEditingController();
-  final notes = TextEditingController();
+  final n = TextEditingController(), v = TextEditingController();
   var type = EntryType.expense;
-  var memberId = c.members.isEmpty ? 1 : c.members.first.id;
-  var accountId = c.accounts.isEmpty ? 1 : c.accounts.first.id;
-  int? categoryId;
-  var status = 'paid';
+  var member = c.members.first.id, account = c.accounts.first.id;
+  int? category;
   await showDialog(
       context: context,
       builder: (_) => StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
+          builder: (context, set) => AlertDialog(
                   title: const Text('Novo lançamento'),
                   content: SingleChildScrollView(
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -524,68 +519,49 @@ Future<void> showEntryDialog(BuildContext context) async {
                           DropdownMenuItem(
                               value: EntryType.income, child: Text('Receita'))
                         ],
-                        onChanged: (v) => setState(() {
-                              type = v!;
-                              categoryId = null;
+                        onChanged: (x) => set(() {
+                              type = x!;
+                              category = null;
                             }),
                         decoration: const InputDecoration(labelText: 'Tipo')),
                     TextField(
-                        controller: name,
+                        controller: n,
                         decoration:
                             const InputDecoration(labelText: 'Descrição')),
                     TextField(
-                        controller: value,
+                        controller: v,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
                             labelText: 'Valor em centavos')),
-                    if (c.members.isNotEmpty)
-                      DropdownButtonFormField<int>(
-                          initialValue: memberId,
-                          items: c.members
-                              .map((m) => DropdownMenuItem(
-                                  value: m.id, child: Text(m.name)))
-                              .toList(),
-                          onChanged: (v) => setState(() => memberId = v!),
-                          decoration:
-                              const InputDecoration(labelText: 'Responsável')),
-                    if (c.accounts.isNotEmpty)
-                      DropdownButtonFormField<int>(
-                          initialValue: accountId,
-                          items: c.accounts
-                              .map((a) => DropdownMenuItem(
-                                  value: a.id, child: Text(a.name)))
-                              .toList(),
-                          onChanged: (v) => setState(() => accountId = v!),
-                          decoration:
-                              const InputDecoration(labelText: 'Conta')),
+                    DropdownButtonFormField<int>(
+                        initialValue: member,
+                        items: c.members
+                            .map((x) => DropdownMenuItem(
+                                value: x.id, child: Text(x.name)))
+                            .toList(),
+                        onChanged: (x) => set(() => member = x!),
+                        decoration:
+                            const InputDecoration(labelText: 'Responsável')),
+                    DropdownButtonFormField<int>(
+                        initialValue: account,
+                        items: c.accounts
+                            .map((x) => DropdownMenuItem(
+                                value: x.id, child: Text(x.name)))
+                            .toList(),
+                        onChanged: (x) => set(() => account = x!),
+                        decoration: const InputDecoration(labelText: 'Conta')),
                     DropdownButtonFormField<int?>(
-                        initialValue: categoryId,
+                        initialValue: category,
                         items: [
-                          const DropdownMenuItem<int?>(
+                          const DropdownMenuItem(
                               value: null, child: Text('Sem categoria')),
                           ...c.categories.where((x) => x.type == type).map(
-                              (x) => DropdownMenuItem<int?>(
+                              (x) => DropdownMenuItem(
                                   value: x.id, child: Text(x.name)))
                         ],
-                        onChanged: (v) => setState(() => categoryId = v),
+                        onChanged: (x) => set(() => category = x),
                         decoration:
-                            const InputDecoration(labelText: 'Categoria')),
-                    DropdownButtonFormField<String>(
-                        initialValue: status,
-                        items: const [
-                          DropdownMenuItem(
-                              value: 'paid', child: Text('Pago/recebido')),
-                          DropdownMenuItem(
-                              value: 'planned', child: Text('Previsto')),
-                          DropdownMenuItem(
-                              value: 'late', child: Text('Atrasado'))
-                        ],
-                        onChanged: (v) => setState(() => status = v!),
-                        decoration: const InputDecoration(labelText: 'Status')),
-                    TextField(
-                        controller: notes,
-                        decoration: const InputDecoration(
-                            labelText: 'Observação (opcional)')),
+                            const InputDecoration(labelText: 'Categoria'))
                   ])),
                   actions: [
                     TextButton(
@@ -593,68 +569,18 @@ Future<void> showEntryDialog(BuildContext context) async {
                         child: const Text('Cancelar')),
                     FilledButton(
                         onPressed: () async {
-                          final cents = int.tryParse(value.text);
-                          if (name.text.trim().isEmpty ||
+                          final cents = int.tryParse(v.text);
+                          if (n.text.trim().isEmpty ||
                               cents == null ||
-                              cents <= 0) {
-                            return;
-                          }
+                              cents <= 0) return;
                           await c.addDetailedTransaction(
                               type: type,
-                              description: name.text.trim(),
+                              description: n.text.trim(),
                               amountCents: cents,
-                              memberId: memberId,
-                              accountId: accountId,
-                              categoryId: categoryId,
-                              status: status,
-                              notes: notes.text.trim().isEmpty
-                                  ? null
-                                  : notes.text.trim());
-                          if (context.mounted) Navigator.pop(context);
-                        },
-                        child: const Text('Salvar'))
-                  ])));
-}
-
-Future<void> showPatrimonyDialog(BuildContext context) async {
-  final name = TextEditingController();
-  final value = TextEditingController();
-  var debt = false;
-  await showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
-                  title: const Text('Novo item patrimonial'),
-                  content: Column(mainAxisSize: MainAxisSize.min, children: [
-                    TextField(
-                        controller: name,
-                        decoration: const InputDecoration(labelText: 'Nome')),
-                    TextField(
-                        controller: value,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                            labelText: 'Valor em centavos')),
-                    SwitchListTile(
-                        value: debt,
-                        onChanged: (v) => setState(() => debt = v),
-                        title: const Text('É uma dívida?'))
-                  ]),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancelar')),
-                    FilledButton(
-                        onPressed: () async {
-                          final cents = int.tryParse(value.text);
-                          if (name.text.trim().isEmpty ||
-                              cents == null ||
-                              cents <= 0) {
-                            return;
-                          }
-                          await context.read<FinanceController>().addPatrimony(
-                              name: name.text.trim(),
-                              amountCents: cents,
-                              isDebt: debt);
+                              memberId: member,
+                              accountId: account,
+                              categoryId: category,
+                              status: 'paid');
                           if (context.mounted) Navigator.pop(context);
                         },
                         child: const Text('Salvar'))
@@ -662,19 +588,17 @@ Future<void> showPatrimonyDialog(BuildContext context) async {
 }
 
 Future<void> showGoalDialog(BuildContext context) async {
-  final name = TextEditingController();
-  final value = TextEditingController();
+  final n = TextEditingController(), v = TextEditingController();
   await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-              title: const Text('Nova meta da casa'),
+              title: const Text('Novo objetivo'),
               content: Column(mainAxisSize: MainAxisSize.min, children: [
                 TextField(
-                    controller: name,
-                    decoration:
-                        const InputDecoration(labelText: 'Nome da meta')),
+                    controller: n,
+                    decoration: const InputDecoration(labelText: 'Nome')),
                 TextField(
-                    controller: value,
+                    controller: v,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                         labelText: 'Valor alvo em centavos'))
@@ -685,29 +609,142 @@ Future<void> showGoalDialog(BuildContext context) async {
                     child: const Text('Cancelar')),
                 FilledButton(
                     onPressed: () async {
-                      final cents = int.tryParse(value.text);
-                      if (name.text.trim().isEmpty ||
-                          cents == null ||
-                          cents <= 0) {
-                        return;
-                      }
+                      final x = int.tryParse(v.text);
+                      if (n.text.trim().isEmpty || x == null || x <= 0) return;
                       await context
                           .read<FinanceController>()
-                          .addGoal(name: name.text.trim(), targetCents: cents);
+                          .addGoal(name: n.text.trim(), targetCents: x);
                       if (context.mounted) Navigator.pop(context);
                     },
                     child: const Text('Salvar'))
               ]));
 }
 
-Future<void> showMemberDialog(BuildContext context) async {
-  final name = TextEditingController();
+Future<void> showContributionDialog(BuildContext context, Goal g) async {
+  final v = TextEditingController();
   await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-              title: const Text('Adicionar pessoa'),
+              title: Text('Saldo para ${g.name}'),
               content: TextField(
-                  controller: name,
+                  controller: v,
+                  keyboardType: TextInputType.number,
+                  decoration:
+                      const InputDecoration(labelText: 'Valor em centavos')),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancelar')),
+                FilledButton(
+                    onPressed: () async {
+                      final x = int.tryParse(v.text);
+                      if (x == null || x <= 0) return;
+                      await context
+                          .read<FinanceController>()
+                          .addGoalContribution(g.id, x);
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                    child: const Text('Adicionar'))
+              ]));
+}
+
+Future<void> showPatrimonyDialog(BuildContext context) async {
+  final n = TextEditingController(), v = TextEditingController();
+  var debt = false;
+  await showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+          builder: (context, set) => AlertDialog(
+                  title: const Text('Novo item patrimonial'),
+                  content: Column(mainAxisSize: MainAxisSize.min, children: [
+                    TextField(
+                        controller: n,
+                        decoration: const InputDecoration(labelText: 'Nome')),
+                    TextField(
+                        controller: v,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            labelText: 'Valor em centavos')),
+                    SwitchListTile(
+                        value: debt,
+                        onChanged: (x) => set(() => debt = x),
+                        title: const Text('É uma dívida?'))
+                  ]),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancelar')),
+                    FilledButton(
+                        onPressed: () async {
+                          final x = int.tryParse(v.text);
+                          if (n.text.trim().isEmpty || x == null || x <= 0)
+                            return;
+                          await context.read<FinanceController>().addPatrimony(
+                              name: n.text.trim(),
+                              amountCents: x,
+                              isDebt: debt);
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                        child: const Text('Salvar'))
+                  ])));
+}
+
+class HouseholdScreen extends StatelessWidget {
+  const HouseholdScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final c = context.watch<FinanceController>();
+    return AppScaffold(
+        title: 'Nossa casa',
+        index: 4,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Eyebrow('MEMBROS'),
+          ...c.members.map((m) => ListTile(
+              title: Text(m.name),
+              trailing: IconButton(
+                  onPressed: () =>
+                      confirmDelete(context, () => c.deleteMember(m.id)),
+                  icon: const Icon(Icons.delete_outline)))),
+          FilledButton(
+              onPressed: () =>
+                  showTextDialog(context, 'Novo membro', c.addMember),
+              child: const Text('Adicionar membro')),
+          const Eyebrow('CONTAS E CARTÕES'),
+          ...c.accounts.map((a) => ListTile(
+              title: Text(a.name),
+              subtitle: Text(a.kind),
+              trailing: IconButton(
+                  onPressed: () =>
+                      confirmDelete(context, () => c.deleteAccount(a.id)),
+                  icon: const Icon(Icons.delete_outline)))),
+          FilledButton(
+              onPressed: () => showAccountDialog(context),
+              child: const Text('Adicionar conta/cartão')),
+          const Eyebrow('CATEGORIAS'),
+          Wrap(
+              spacing: 5,
+              children: c.categories
+                  .map((x) => InputChip(
+                      label: Text(x.name),
+                      onDeleted: () =>
+                          confirmDelete(context, () => c.deleteCategory(x.id))))
+                  .toList()),
+          FilledButton(
+              onPressed: () => showCategoryDialog(context),
+              child: const Text('Adicionar categoria')),
+        ]));
+  }
+}
+
+Future<void> showTextDialog(BuildContext context, String title,
+    Future<void> Function(String) save) async {
+  final x = TextEditingController();
+  await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+              title: Text(title),
+              content: TextField(
+                  controller: x,
                   decoration: const InputDecoration(labelText: 'Nome')),
               actions: [
                 TextButton(
@@ -715,10 +752,8 @@ Future<void> showMemberDialog(BuildContext context) async {
                     child: const Text('Cancelar')),
                 FilledButton(
                     onPressed: () async {
-                      if (name.text.trim().isEmpty) return;
-                      await context
-                          .read<FinanceController>()
-                          .addMember(name.text.trim());
+                      if (x.text.trim().isEmpty) return;
+                      await save(x.text.trim());
                       if (context.mounted) Navigator.pop(context);
                     },
                     child: const Text('Salvar'))
@@ -726,17 +761,16 @@ Future<void> showMemberDialog(BuildContext context) async {
 }
 
 Future<void> showAccountDialog(BuildContext context) async {
-  final name = TextEditingController();
-  final limit = TextEditingController();
+  final n = TextEditingController();
   var kind = 'bank';
   await showDialog(
       context: context,
       builder: (_) => StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
-                  title: const Text('Adicionar conta'),
+          builder: (context, set) => AlertDialog(
+                  title: const Text('Nova conta/cartão'),
                   content: Column(mainAxisSize: MainAxisSize.min, children: [
                     TextField(
-                        controller: name,
+                        controller: n,
                         decoration: const InputDecoration(labelText: 'Nome')),
                     DropdownButtonFormField<String>(
                         initialValue: kind,
@@ -749,13 +783,8 @@ Future<void> showAccountDialog(BuildContext context) async {
                           DropdownMenuItem(
                               value: 'cash', child: Text('Dinheiro físico'))
                         ],
-                        onChanged: (v) => setState(() => kind = v!),
-                        decoration: const InputDecoration(labelText: 'Tipo')),
-                    TextField(
-                        controller: limit,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                            labelText: 'Limite em centavos (opcional)'))
+                        onChanged: (x) => set(() => kind = x!),
+                        decoration: const InputDecoration(labelText: 'Tipo'))
                   ]),
                   actions: [
                     TextButton(
@@ -763,11 +792,10 @@ Future<void> showAccountDialog(BuildContext context) async {
                         child: const Text('Cancelar')),
                     FilledButton(
                         onPressed: () async {
-                          if (name.text.trim().isEmpty) return;
-                          await context.read<FinanceController>().addAccount(
-                              name: name.text.trim(),
-                              kind: kind,
-                              limitCents: int.tryParse(limit.text) ?? 0);
+                          if (n.text.trim().isEmpty) return;
+                          await context
+                              .read<FinanceController>()
+                              .addAccount(name: n.text.trim(), kind: kind);
                           if (context.mounted) Navigator.pop(context);
                         },
                         child: const Text('Salvar'))
@@ -775,16 +803,16 @@ Future<void> showAccountDialog(BuildContext context) async {
 }
 
 Future<void> showCategoryDialog(BuildContext context) async {
-  final name = TextEditingController();
+  final n = TextEditingController();
   var type = EntryType.expense;
   await showDialog(
       context: context,
       builder: (_) => StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
-                  title: const Text('Adicionar categoria'),
+          builder: (context, set) => AlertDialog(
+                  title: const Text('Nova categoria'),
                   content: Column(mainAxisSize: MainAxisSize.min, children: [
                     TextField(
-                        controller: name,
+                        controller: n,
                         decoration: const InputDecoration(labelText: 'Nome')),
                     DropdownButtonFormField<EntryType>(
                         initialValue: type,
@@ -794,7 +822,7 @@ Future<void> showCategoryDialog(BuildContext context) async {
                           DropdownMenuItem(
                               value: EntryType.income, child: Text('Receita'))
                         ],
-                        onChanged: (v) => setState(() => type = v!),
+                        onChanged: (x) => set(() => type = x!),
                         decoration: const InputDecoration(labelText: 'Tipo'))
                   ]),
                   actions: [
@@ -803,156 +831,88 @@ Future<void> showCategoryDialog(BuildContext context) async {
                         child: const Text('Cancelar')),
                     FilledButton(
                         onPressed: () async {
-                          if (name.text.trim().isEmpty) return;
+                          if (n.text.trim().isEmpty) return;
                           await context
                               .read<FinanceController>()
-                              .addCategory(name: name.text.trim(), type: type);
+                              .addCategory(name: n.text.trim(), type: type);
                           if (context.mounted) Navigator.pop(context);
                         },
                         child: const Text('Salvar'))
                   ])));
 }
 
-Future<void> showRecurringDialog(BuildContext context) async {
-  final name = TextEditingController();
-  final value = TextEditingController();
-  final day = TextEditingController(text: '1');
-  var type = EntryType.expense;
-  await showDialog(
-      context: context,
-      builder: (_) => StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
-                  title: const Text('Nova recorrência'),
-                  content: Column(mainAxisSize: MainAxisSize.min, children: [
-                    DropdownButtonFormField<EntryType>(
-                        initialValue: type,
-                        items: const [
-                          DropdownMenuItem(
-                              value: EntryType.expense, child: Text('Despesa')),
-                          DropdownMenuItem(
-                              value: EntryType.income, child: Text('Receita'))
-                        ],
-                        onChanged: (v) => setState(() => type = v!),
-                        decoration: const InputDecoration(labelText: 'Tipo')),
-                    TextField(
-                        controller: name,
-                        decoration:
-                            const InputDecoration(labelText: 'Descrição')),
-                    TextField(
-                        controller: value,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                            labelText: 'Valor em centavos')),
-                    TextField(
-                        controller: day,
-                        keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'Dia do mês'))
-                  ]),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancelar')),
-                    FilledButton(
-                        onPressed: () async {
-                          final cents = int.tryParse(value.text);
-                          final dayNumber = int.tryParse(day.text);
-                          if (name.text.trim().isEmpty ||
-                              cents == null ||
-                              cents <= 0 ||
-                              dayNumber == null ||
-                              dayNumber < 1 ||
-                              dayNumber > 31) {
-                            return;
-                          }
-                          await context.read<FinanceController>().addRecurring(
-                              type: type,
-                              description: name.text.trim(),
-                              amountCents: cents,
-                              dayOfMonth: dayNumber);
-                          if (context.mounted) Navigator.pop(context);
-                        },
-                        child: const Text('Salvar'))
-                  ])));
+class ControlsScreen extends StatefulWidget {
+  const ControlsScreen({super.key});
+  @override
+  State<ControlsScreen> createState() => _ControlsState();
 }
 
-Future<void> showBudgetDialog(BuildContext context) async {
-  final c = context.read<FinanceController>();
-  final value = TextEditingController();
-  final expenses =
-      c.categories.where((x) => x.type == EntryType.expense).toList();
-  int? categoryId = expenses.isEmpty ? null : expenses.first.id;
-  await showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-              title: const Text('Novo orçamento'),
-              content: Column(mainAxisSize: MainAxisSize.min, children: [
-                DropdownButtonFormField<int>(
-                    initialValue: categoryId,
-                    items: expenses
-                        .map((x) =>
-                            DropdownMenuItem(value: x.id, child: Text(x.name)))
-                        .toList(),
-                    onChanged: (v) => categoryId = v,
-                    decoration: const InputDecoration(labelText: 'Categoria')),
-                TextField(
-                    controller: value,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                        labelText: 'Limite do mês em centavos'))
-              ]),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancelar')),
-                FilledButton(
-                    onPressed: () async {
-                      final cents = int.tryParse(value.text);
-                      if (categoryId == null || cents == null || cents <= 0) {
-                        return;
-                      }
-                      await c.addBudget(
-                          categoryId: categoryId!,
-                          month: DateFormat('yyyy-MM').format(DateTime.now()),
-                          amountCents: cents);
-                      if (context.mounted) Navigator.pop(context);
-                    },
-                    child: const Text('Salvar'))
-              ]));
+class _ControlsState extends State<ControlsScreen> {
+  bool hide = false, compact = false;
+  double scale = 1;
+  @override
+  Widget build(BuildContext context) => AppScaffold(
+        title: 'Controles do app',
+        index: 4,
+        child: Column(children: [
+          SwitchListTile(
+              title: const Text('Ocultar valores'),
+              value: hide,
+              onChanged: (v) => setState(() => hide = v)),
+          SwitchListTile(
+              title: const Text('Modo compacto'),
+              value: compact,
+              onChanged: (v) => setState(() => compact = v)),
+          ListTile(
+              title: const Text('Tamanho do texto'),
+              subtitle: Slider(
+                  value: scale,
+                  min: .85,
+                  max: 1.25,
+                  divisions: 8,
+                  onChanged: (v) => setState(() => scale = v))),
+        ]),
+      );
+}
+
+class PlanningScreen extends StatelessWidget {
+  const PlanningScreen({super.key});
+  @override
+  Widget build(BuildContext context) => const MoreScreen();
+}
+
+class BackupScreen extends StatelessWidget {
+  const BackupScreen({super.key});
+  @override
+  Widget build(BuildContext context) => AppScaffold(
+      title: 'Backup',
+      index: 4,
+      child: Column(children: [
+        FilledButton(
+            onPressed: () => exportBackup(context),
+            child: const Text('Exportar dados')),
+        OutlinedButton(
+            onPressed: () => importBackup(context),
+            child: const Text('Importar dados'))
+      ]));
 }
 
 Future<void> exportBackup(BuildContext context) async {
-  try {
-    final json = await context.read<FinanceController>().exportJson();
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/meu-dinheiro-backup.json');
-    await file.writeAsString(json);
-    await SharePlus.instance.share(
-        ShareParams(files: [XFile(file.path)], text: 'Backup do Meu Dinheiro'));
-  } catch (_) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Não foi possível exportar o backup.')));
-    }
-  }
+  final json = await context.read<FinanceController>().exportJson();
+  final dir = await getTemporaryDirectory();
+  final file = File('${dir.path}/meu-dinheiro-backup.json');
+  await file.writeAsString(json);
+  await SharePlus.instance.share(
+      ShareParams(files: [XFile(file.path)], text: 'Backup do Meu Dinheiro'));
 }
 
 Future<void> importBackup(BuildContext context) async {
-  final controller = context.read<FinanceController>();
-  final messenger = ScaffoldMessenger.of(context);
-  try {
-    final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom, allowedExtensions: ['json'], withData: true);
-    if (result == null) return;
-    final file = result.files.single;
-    final Uint8List? bytes = file.bytes ??
-        (file.path == null ? null : await File(file.path!).readAsBytes());
-    if (bytes == null) throw const FormatException();
-    await controller.importJson(utf8.decode(bytes));
-    messenger.showSnackBar(
-        const SnackBar(content: Text('Backup importado com sucesso.')));
-  } catch (_) {
-    messenger.showSnackBar(
-        const SnackBar(content: Text('Backup inválido ou incompatível.')));
-  }
+  final r = await FilePicker.platform.pickFiles(
+      type: FileType.custom, allowedExtensions: ['json'], withData: true);
+  if (r == null) return;
+  final f = r.files.single;
+  final Uint8List? b =
+      f.bytes ?? (f.path == null ? null : await File(f.path!).readAsBytes());
+  if (b != null)
+    await context.read<FinanceController>().importJson(utf8.decode(b));
 }

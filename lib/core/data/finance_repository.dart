@@ -4,12 +4,15 @@ import 'package:sqflite/sqflite.dart';
 
 import '../models/finance_models.dart';
 
+String _monthKey(DateTime date) =>
+    '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}';
+
 class FinanceRepository {
   Database? _database;
   Future<Database> get database async {
     if (_database != null) return _database!;
     final path = p.join(await getDatabasesPath(), 'meu_dinheiro.db');
-    _database = await openDatabase(path, version: 2, onCreate: _createSchema,
+    _database = await openDatabase(path, version: 3, onCreate: _createSchema,
         onUpgrade: (db, old, _) async {
       if (old < 2) {
         await db.execute(
@@ -25,7 +28,11 @@ class FinanceRepository {
         await db.execute('ALTER TABLE transactions ADD COLUMN notes TEXT');
         await db.execute(
             'ALTER TABLE patrimony ADD COLUMN household_id INTEGER NOT NULL DEFAULT 1');
-        await _createSchema(db, 2);
+        await _createSchema(db, 3);
+      }
+      if (old < 3) {
+        await db.execute(
+            'CREATE TABLE IF NOT EXISTS patrimony_snapshots (month TEXT PRIMARY KEY, amount_cents INTEGER NOT NULL)');
       }
     });
     return _database!;
@@ -50,6 +57,8 @@ class FinanceRepository {
         'CREATE TABLE IF NOT EXISTS budgets (id INTEGER PRIMARY KEY AUTOINCREMENT, household_id INTEGER NOT NULL, category_id INTEGER NOT NULL, month TEXT NOT NULL, amount_cents INTEGER NOT NULL)');
     await db.execute(
         'CREATE TABLE IF NOT EXISTS goals (id INTEGER PRIMARY KEY AUTOINCREMENT, household_id INTEGER NOT NULL, name TEXT NOT NULL, target_cents INTEGER NOT NULL, saved_cents INTEGER NOT NULL DEFAULT 0)');
+    await db.execute(
+        'CREATE TABLE IF NOT EXISTS patrimony_snapshots (month TEXT PRIMARY KEY, amount_cents INTEGER NOT NULL)');
     if ((await db.query('households')).isEmpty) {
       await db.insert('households', {'id': 1, 'name': 'Nossa casa'});
       await db.insert(
@@ -112,6 +121,8 @@ class FinanceRepository {
         'amount_cents': 2732200,
         'is_debt': 0
       });
+      await db.insert(
+          'patrimony_snapshots', {'month': '2026-09', 'amount_cents': 3473200});
       await db.insert('patrimony', {
         'household_id': 1,
         'name': 'Biz',
@@ -160,6 +171,10 @@ class FinanceRepository {
       (await (await database).query('goals', orderBy: 'id'))
           .map(Goal.fromMap)
           .toList();
+  Future<List<PatrimonySnapshot>> patrimonySnapshots() async =>
+      (await (await database).query('patrimony_snapshots', orderBy: 'month'))
+          .map(PatrimonySnapshot.fromMap)
+          .toList();
   Future<void> addTransaction(TransactionEntry x) async =>
       (await database).insert('transactions', {
         'type': x.type.name,
@@ -207,6 +222,23 @@ class FinanceRepository {
     final values = x.toMap()..remove('id');
     await (await database).insert('goals', {'household_id': 1, ...values});
   }
+
+  Future<void> addGoalContribution(int id, int cents) async =>
+      (await database).rawUpdate(
+          'UPDATE goals SET saved_cents = saved_cents + ? WHERE id = ?',
+          [cents, id]);
+  Future<void> deleteGoal(int id) async =>
+      (await database).delete('goals', where: 'id = ?', whereArgs: [id]);
+  Future<void> deleteMember(int id) async =>
+      (await database).delete('members', where: 'id = ?', whereArgs: [id]);
+  Future<void> deleteAccount(int id) async =>
+      (await database).delete('accounts', where: 'id = ?', whereArgs: [id]);
+  Future<void> deleteCategory(int id) async =>
+      (await database).delete('categories', where: 'id = ?', whereArgs: [id]);
+  Future<void> savePatrimonySnapshot(int cents) async =>
+      (await database).insert('patrimony_snapshots',
+          {'month': _monthKey(DateTime.now()), 'amount_cents': cents},
+          conflictAlgorithm: ConflictAlgorithm.replace);
 
   Future<String> exportJson() async {
     final db = await database;

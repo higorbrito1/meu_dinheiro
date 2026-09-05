@@ -16,6 +16,7 @@ class FinanceController extends ChangeNotifier {
   List<RecurringTransaction> recurring = [];
   List<Budget> budgets = [];
   List<Goal> goals = [];
+  List<PatrimonySnapshot> patrimonySnapshots = [];
   bool isLoading = true;
   int? memberFilterId;
   DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
@@ -35,6 +36,7 @@ class FinanceController extends ChangeNotifier {
     recurring = await repository.recurring();
     budgets = await repository.budgets();
     goals = await repository.goals();
+    patrimonySnapshots = await repository.patrimonySnapshots();
     isLoading = false;
     notifyListeners();
   }
@@ -45,6 +47,18 @@ class FinanceController extends ChangeNotifier {
   int get expenses => calculator.expenses(monthTransactions);
   int get assets => calculator.assets(patrimony);
   int get debts => calculator.debts(patrimony);
+  Map<String, int> get categoryTotals {
+    final result = <String, int>{};
+    for (final x
+        in monthTransactions.where((x) => x.type == EntryType.expense)) {
+      final category = categories.where((c) => c.id == x.categoryId);
+      final name = category.isEmpty ? 'Outros' : category.first.name;
+      result[name] = (result[name] ?? 0) + x.amountCents;
+    }
+    return Map.fromEntries(
+        result.entries.toList()..sort((a, b) => b.value.compareTo(a.value)));
+  }
+
   List<TransactionEntry> get visibleTransactions => memberFilterId == null
       ? monthTransactions
       : monthTransactions.where((x) => x.memberId == memberFilterId).toList();
@@ -125,6 +139,9 @@ class FinanceController extends ChangeNotifier {
     await repository.addPatrimony(PatrimonyItem(
         id: 0, name: name, amountCents: amountCents, isDebt: isDebt));
     await load();
+    await repository.savePatrimonySnapshot(assets - debts);
+    patrimonySnapshots = await repository.patrimonySnapshots();
+    notifyListeners();
   }
 
   Future<void> addRecurring(
@@ -162,6 +179,34 @@ class FinanceController extends ChangeNotifier {
 
   Future<void> deletePatrimony(int id) async {
     await repository.deletePatrimony(id);
+    await load();
+    await repository.savePatrimonySnapshot(assets - debts);
+    patrimonySnapshots = await repository.patrimonySnapshots();
+    notifyListeners();
+  }
+
+  Future<void> addGoalContribution(int id, int cents) async {
+    await repository.addGoalContribution(id, cents);
+    await load();
+  }
+
+  Future<void> deleteGoal(int id) async {
+    await repository.deleteGoal(id);
+    await load();
+  }
+
+  Future<void> deleteMember(int id) async {
+    await repository.deleteMember(id);
+    await load();
+  }
+
+  Future<void> deleteAccount(int id) async {
+    await repository.deleteAccount(id);
+    await load();
+  }
+
+  Future<void> deleteCategory(int id) async {
+    await repository.deleteCategory(id);
     await load();
   }
 }

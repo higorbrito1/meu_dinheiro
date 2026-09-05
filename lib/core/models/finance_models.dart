@@ -193,3 +193,12 @@ class Goal {
       targetCents: m['target_cents'] as int,
       savedCents: m['saved_cents'] as int);
 }
+
+class PatrimonySnapshot {
+  const PatrimonySnapshot({required this.month, required this.amountCents});
+  final String month;
+  final int amountCents;
+  factory PatrimonySnapshot.fromMap(Map<String, Object?> m) =>
+      PatrimonySnapshot(
+          month: m['month'] as String, amountCents: m['amount_cents'] as int);
+}

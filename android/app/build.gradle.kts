@@ -8,7 +8,7 @@ android {
     namespace = "com.higor.meu_dinheiro"
     compileSdk = flutter.compileSdkVersion
     // Use the NDK already provisioned in the local Android SDK.
-    ndkVersion = "27.1.12297006"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
