@@ -16,11 +16,13 @@ class FinanceController extends ChangeNotifier {
   List<Goal> goals = [];
   bool isLoading = true;
   int? memberFilterId;
+  DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
 
   Future<void> load() async {
     isLoading = true;
     notifyListeners();
     transactions = await repository.transactions();
+    if (transactions.isNotEmpty) { final latest = transactions.first.date; selectedMonth = DateTime(latest.year, latest.month); }
     patrimony = await repository.patrimony();
     members = await repository.members();
     accounts = await repository.accounts();
@@ -32,12 +34,15 @@ class FinanceController extends ChangeNotifier {
     notifyListeners();
   }
 
-  int get income => transactions.where((x) => x.type == EntryType.income).fold(0, (sum, x) => sum + x.amountCents);
-  int get expenses => transactions.where((x) => x.type == EntryType.expense).fold(0, (sum, x) => sum + x.amountCents);
+  bool _sameMonth(DateTime value) => value.year == selectedMonth.year && value.month == selectedMonth.month;
+  List<TransactionEntry> get monthTransactions => transactions.where((x) => _sameMonth(x.date)).toList();
+  int get income => monthTransactions.where((x) => x.type == EntryType.income).fold(0, (sum, x) => sum + x.amountCents);
+  int get expenses => monthTransactions.where((x) => x.type == EntryType.expense).fold(0, (sum, x) => sum + x.amountCents);
   int get assets => patrimony.where((x) => !x.isDebt).fold(0, (sum, x) => sum + x.amountCents);
   int get debts => patrimony.where((x) => x.isDebt).fold(0, (sum, x) => sum + x.amountCents);
-  List<TransactionEntry> get visibleTransactions => memberFilterId == null ? transactions : transactions.where((x) => x.memberId == memberFilterId).toList();
+  List<TransactionEntry> get visibleTransactions => memberFilterId == null ? monthTransactions : monthTransactions.where((x) => x.memberId == memberFilterId).toList();
   void filterByMember(int? id) { memberFilterId = id; notifyListeners(); }
+  void selectMonth(DateTime value) { selectedMonth = DateTime(value.year, value.month); notifyListeners(); }
 
   Future<void> addTransaction({required EntryType type, required String description, required int amountCents}) async {
     await repository.addTransaction(TransactionEntry(id: 0, type: type, description: description, amountCents: amountCents, date: DateTime.now()));
