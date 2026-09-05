@@ -7,7 +7,8 @@ plugins {
 android {
     namespace = "com.higor.meu_dinheiro"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Use the NDK already provisioned in the local Android SDK.
+    ndkVersion = "27.1.12297006"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
