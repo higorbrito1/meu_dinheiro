@@ -8,6 +8,9 @@ class FinanceController extends ChangeNotifier {
   final FinanceRepository repository;
   List<TransactionEntry> transactions = [];
   List<PatrimonyItem> patrimony = [];
+  List<HouseholdMember> members = [];
+  List<Account> accounts = [];
+  List<Category> categories = [];
   bool isLoading = true;
 
   Future<void> load() async {
@@ -15,6 +18,9 @@ class FinanceController extends ChangeNotifier {
     notifyListeners();
     transactions = await repository.transactions();
     patrimony = await repository.patrimony();
+    members = await repository.members();
+    accounts = await repository.accounts();
+    categories = await repository.categories();
     isLoading = false;
     notifyListeners();
   }
