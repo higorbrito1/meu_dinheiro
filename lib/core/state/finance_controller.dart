@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import '../data/finance_repository.dart';
+import '../domain/finance_calculator.dart';
 import '../models/finance_models.dart';
 
 class FinanceController extends ChangeNotifier {
   FinanceController(this.repository);
   final FinanceRepository repository;
+  final calculator = const FinanceCalculator();
   List<TransactionEntry> transactions = [];
   List<PatrimonyItem> patrimony = [];
   List<HouseholdMember> members = [];
@@ -34,12 +36,11 @@ class FinanceController extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _sameMonth(DateTime value) => value.year == selectedMonth.year && value.month == selectedMonth.month;
-  List<TransactionEntry> get monthTransactions => transactions.where((x) => _sameMonth(x.date)).toList();
-  int get income => monthTransactions.where((x) => x.type == EntryType.income).fold(0, (sum, x) => sum + x.amountCents);
-  int get expenses => monthTransactions.where((x) => x.type == EntryType.expense).fold(0, (sum, x) => sum + x.amountCents);
-  int get assets => patrimony.where((x) => !x.isDebt).fold(0, (sum, x) => sum + x.amountCents);
-  int get debts => patrimony.where((x) => x.isDebt).fold(0, (sum, x) => sum + x.amountCents);
+  List<TransactionEntry> get monthTransactions => calculator.forMonth(transactions, selectedMonth);
+  int get income => calculator.income(monthTransactions);
+  int get expenses => calculator.expenses(monthTransactions);
+  int get assets => calculator.assets(patrimony);
+  int get debts => calculator.debts(patrimony);
   List<TransactionEntry> get visibleTransactions => memberFilterId == null ? monthTransactions : monthTransactions.where((x) => x.memberId == memberFilterId).toList();
   void filterByMember(int? id) { memberFilterId = id; notifyListeners(); }
   void selectMonth(DateTime value) { selectedMonth = DateTime(value.year, value.month); notifyListeners(); }

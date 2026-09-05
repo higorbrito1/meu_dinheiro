@@ -13,6 +13,7 @@ Reescrita do aplicativo financeiro em Flutter, com arquitetura local-first.
 - Contrato `FinanceSyncGateway` para conectar um backend posteriormente.
 - Navegação declarativa com `go_router`.
 - Estado da aplicação isolado em `FinanceController`.
+- Cálculos financeiros isolados em `FinanceCalculator` e cobertos por testes unitários.
 - Testes automatizados em `test/`.
 
 ## Executar
